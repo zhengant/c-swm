@@ -107,4 +107,5 @@ venv.bak/
 .vscode/
 data/
 checkpoints/
+outputs/
 *.ps1
