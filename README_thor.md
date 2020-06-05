@@ -1,0 +1,6 @@
+# README for using with THOR
+
+These are the main things to pay attention to for working with THOR data:
+* `data_gen/thor2cswm.py` is a script for converting data from THOR to the format wanted by C-SWM. The format of the THOR data may have changed since I've last run this script, but it should theoretically be close. The script should output four files: two `.h5` files containing the training and testing data for C-SWM and two `.pkl` files containing the masks corresponding to the training and testing data. The data all come in lists and the indexing between the training/testing data and the masks data should matchup between each other.
+* Changes were made to teh `modules.py` and `utils.py` files to add 1) Resnet as a state encoder and 2) support for THOR's actions (which consist of both an interaction type and an indicator for the target(s) of the interactions - target indicator is right now the xy-pixel coordinates of the center of the object). 
+* `eval_masks.py` is a (currently incomplete) script evaluating the masks from C-SWM.
