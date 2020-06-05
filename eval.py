@@ -49,7 +49,7 @@ if __name__ == '__main__':
     dataset = utils.PathDataset(
         hdf5_file=args.dataset, path_length=args_eval.num_steps)
     eval_loader = data.DataLoader(
-        dataset, batch_size=args.batch_size, shuffle=False, num_workers=1)
+        dataset, batch_size=args.batch_size, shuffle=False, num_workers=0)
 
     # Get data sample
     data_iter = eval_loader.__iter__()
@@ -63,6 +63,8 @@ if __name__ == '__main__':
         action_dim=args.action_dim,
         input_dims=input_shape,
         num_objects=args.num_objects,
+        target_object_dim=args.target_object_dim,
+        action_embed_dim=args.action_embed_dim,
         sigma=args.sigma,
         hinge=args.hinge,
         ignore_action=args.ignore_action,
@@ -77,6 +79,7 @@ if __name__ == '__main__':
     hits_at = defaultdict(int)
     num_samples = 0
     rr_sum = 0
+    rank_sum = 0
 
     pred_states = []
     next_states = []
@@ -88,8 +91,9 @@ if __name__ == '__main__':
                 device) for t in tensor] for tensor in data_batch]
             observations, actions = data_batch
 
-            if observations[0].size(0) != args.batch_size:
-                continue
+            # if observations[0].size(0) != args.batch_size:
+            #     print('continue')
+            #     continue
 
             obs = observations[0]
             next_obs = observations[-1]
@@ -148,6 +152,8 @@ if __name__ == '__main__':
         match = indices == labels
         _, ranks = match.max(1)
 
+        rank_sum += (ranks.double() + 1).sum()
+
         reciprocal_ranks = torch.reciprocal(ranks.double() + 1)
         rr_sum += reciprocal_ranks.sum()
 
@@ -158,3 +164,4 @@ if __name__ == '__main__':
         print('Hits @ {}: {}'.format(k, hits_at[k] / float(num_samples)))
 
     print('MRR: {}'.format(rr_sum / float(num_samples)))
+    print('Average rank: {}'.format(rank_sum / float(num_samples)))
