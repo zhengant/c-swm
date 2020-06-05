@@ -79,7 +79,7 @@ class ContrastiveSWM(nn.Module):
             self.obj_extractor = EncoderResNet(num_objects, encoder)
 
         self.obj_encoder = EncoderMLP(
-            input_dim=100, # np.prod(width_height), resnet output will be 10x10 maps
+            input_dim=100,  # np.prod(width_height), resnet output will be 10x10 maps
             hidden_dim=hidden_dim,
             output_dim=embedding_dim,
             num_objects=num_objects,
@@ -176,7 +176,11 @@ class TransitionGNN(torch.nn.Module):
         else:
             self.action_dim = action_dim
 
-        self.action_encoder = ActionEncoder(action_dim, target_object_dim, action_embed_dim)
+        self.action_embed_dim = action_embed_dim
+
+        self.action_encoder = ActionEncoder(
+            action_dim, target_object_dim, action_embed_dim
+        )
 
         self.edge_mlp = nn.Sequential(
             nn.Linear(input_dim * 2, hidden_dim),
@@ -187,7 +191,7 @@ class TransitionGNN(torch.nn.Module):
             nn.Linear(hidden_dim, hidden_dim),
         )
 
-        node_input_dim = hidden_dim + input_dim + self.action_dim
+        node_input_dim = hidden_dim + input_dim + self.action_embed_dim
 
         self.node_mlp = nn.Sequential(
             nn.Linear(node_input_dim, hidden_dim),
@@ -281,9 +285,9 @@ class TransitionGNN(torch.nn.Module):
 
             # action itself is encoded in 0th index, target of action encoded in rest
             action, target = action[:, 0], action[:, 1:]
-            action_vec = self.action_encoder(
-                utils.to_one_hot(action, self.action_dim), target
-            )
+            action_vec = self.action_encoder(action, target).repeat(1, self.num_objects)
+
+            action_vec = action_vec.view(-1, self.action_embed_dim)
 
             # Attach action to each state
             node_attr = torch.cat([node_attr, action_vec], dim=-1)
@@ -394,17 +398,18 @@ class EncoderMLP(nn.Module):
 
 
 class EncoderResNet(nn.Module):
-    def __init__(self, num_objects, resnet_type='resnet18'):
+    def __init__(self, num_objects, resnet_type="resnet18", act_fn='sigmoid'):
         super(EncoderResNet, self).__init__()
-        layer_map = {
-            'resnet18': [2, 2, 2, 2],
-            'resnet34': [3, 4, 6, 3]
-        }
+        layer_map = {"resnet18": [2, 2, 2, 2], "resnet34": [3, 4, 6, 3]}
 
-        self.resnet = ResNet(BasicBlock, layer_map[resnet_type], num_classes=num_objects)
+        self.resnet = ResNet(
+            BasicBlock, layer_map[resnet_type], num_classes=num_objects
+        )
+
+        self.act_fn = utils.get_act_fn(act_fn)
 
     def forward(self, input):
-        return self.resnet(input)
+        return self.act_fn(self.resnet(input))
 
 
 class DecoderMLP(nn.Module):
@@ -588,7 +593,7 @@ class ActionEncoder(nn.Module):
         action: one hot encoding of the object
         target_object: some indicator/represenation of the target object
         """
-        action_embedding = self.action_embeddings(action)
-        object_embedding = self.fc_object(target_object)
+        action_embedding = self.action_embeddings(action.long())
+        object_embedding = self.fc_object(target_object.float())
 
         return action_embedding * object_embedding
